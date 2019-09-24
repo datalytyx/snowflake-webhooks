@@ -53,7 +53,7 @@ export S3_BUCKET="your_desired_s3_bucket_location"   # note this will be created
 ```
 The use the following commands to convert the template files into ones personalised for you:
 ```
-cat setup.sql | sed -e "s~{SNOWFLAKE_METADATA_DATABASE}~$SNOWFLAKE_METADATA_DATABASE~g" | sed -e "s~{SNOWFLAKE_METADATA_SCHEMA}~$SNOWFLAKE_METADATA_SCHEMA~g" | sed -e "s~{S3_BUCKET}~$S3_BUCKET~g" | sed -e "s~{AWS_KEY_ID}~$AWS_KEY_ID~g" | sed -e "s~{AWS_SECRET_KEY}~$AWS_SECRET_KEY~g" > setup.sql
+cat setup.sql.template | sed -e "s~{SNOWFLAKE_METADATA_DATABASE}~$SNOWFLAKE_METADATA_DATABASE~g" | sed -e "s~{SNOWFLAKE_METADATA_SCHEMA}~$SNOWFLAKE_METADATA_SCHEMA~g" | sed -e "s~{S3_BUCKET}~$S3_BUCKET~g" | sed -e "s~{AWS_KEY_ID}~$AWS_KEY_ID~g" | sed -e "s~{AWS_SECRET_KEY}~$AWS_SECRET_KEY~g" > setup.sql
 
 cat serverless.yaml.template | sed -e "s~{S3_BUCKET}~$S3_BUCKET~g" > serverless.yaml
 
@@ -100,13 +100,19 @@ call WEBHOOK_METADATA.PUBLIC.call_webhook_async ($myid,$notfound_webhook_url,'PO
 call WEBHOOK_METADATA.PUBLIC.call_webhook_async ($myid,$bad_webhook_url,'POST',$payload);
 ```
 
-All of these should return quickly with the same response:
+You should see a response pretty quickly that says:
 
 ```
 Webhook sucessfully registered for execution
 ```
 
-Since the async version of the function does not collect any of the results of the Lambda function (note these results ARE generated and exist as response files in the S3 bucket, but are not pulled back into the table), there is no indication which of these worked and which did not. 
+This means that a row has been written to the SNOWFLAKE_METADATA_DATABASE you defined and a file has been created in the S3 bucket. Assuming the Lambda function has been setup correctly the writing of this file will trigger the Lamba function. The AWS Lambda pages provide excellent functionality to check that jobs have been executed, whether they ran sucessfully or not and see the logs for the function. You can also get these logs streamed to you in real-time (with some delay) by running:
+
+```
+serverless logs --function callWebhook --tail
+```
+Which is very useful for debugging.
+
 
 The following sync calls DO return different results:
 
@@ -152,26 +158,6 @@ should give a response like:
 ```
 {"httpStatusCode":"520","body":"{"code":"ENOTFOUND","errno":"ENOTFOUND","host":"iamnotavalidurl.com","hostname":"iamnotavalidurl.com","port":443,"syscall":"getaddrinfo"}"}
 ```
-
-You should see a response pretty quickly that says:
-
-```
-Webhook sucessfully registered for execution
-```
-
-This means that a row has been written to the SNOWFLAKE_METADATA_DATABASE you defined and a file has been created in the S3 bucket. Assuming the Lambda function has been setup correctly the writing of this file will trigger the Lamba function. The AWS Lambda pages provide excellent functionality to check that jobs have been executed, whether they ran sucessfully or not and see the logs for the function. You can also get these logs streamed to you in real-time (with some delay) by running:
-
-```
-serverless logs --function callWebhook --tail
-```
-Which is very useful for debugging.
-
-Now test the syncronous/blocking version:
-
-```
-call WEBHOOK_METADATA.PUBLIC.call_webhook_sync ($uuid,$webhook_url,'POST',$payload);
-```
-
 
 
 At the end of these 6 tests, if you look at the raw log table:
