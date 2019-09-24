@@ -13,7 +13,7 @@ The reliability of the delivery from Snowflake to S3 to trigger the Lamda functi
 
 HTTP Verbs other than POST are technically supported but have not been extensively tested.
 
-WEBHOOK_RUNTIME is not currently populated but since the STARt and COMPLETE times are populated, this is trival to derive.
+WEBHOOK_RUNTIME is not currently populated but since the START and COMPLETE times are populated, this is trival to derive.
 
 # Architecture
 Since there is no ability to execute arbitrary code (or at least code that can talk out on a network) from within Snowflake, we need to take a slightly different approach. Instead the approach we take is to create 'markers' from within Snowflake that an external system can pickup on and then action.
