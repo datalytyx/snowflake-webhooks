@@ -95,9 +95,9 @@ Be sure to set your good_webhook_url to the one you created yourself at webhook.
 You can then run the following test cases:
 
 ```
-call WEBHOOK_METADATA.PUBLIC.call_webhook_async ($myid,$good_webhook_url,'POST',$payload);
-call WEBHOOK_METADATA.PUBLIC.call_webhook_async ($myid,$notfound_webhook_url,'POST',$payload);
-call WEBHOOK_METADATA.PUBLIC.call_webhook_async ($myid,$bad_webhook_url,'POST',$payload);
+call call_webhook_async ($myid,$good_webhook_url,'POST',$payload);
+callcall_webhook_async ($myid,$notfound_webhook_url,'POST',$payload);
+call call_webhook_async ($myid,$bad_webhook_url,'POST',$payload);
 ```
 
 You should see a response pretty quickly that says:
@@ -117,7 +117,7 @@ Which is very useful for debugging.
 The following sync calls DO return different results:
 
 ```
-call WEBHOOK_METADATA.PUBLIC.call_webhook_sync ($myid,$good_webhook_url,'POST',$payload);
+call call_webhook_sync ($myid,$good_webhook_url,'POST',$payload);
 ```
 
 should give a response like:
@@ -129,7 +129,7 @@ should give a response like:
 Where ```HELLO``` was the HTTP Response I setup when I created my URL at webhook.site
 
 ```
-call WEBHOOK_METADATA.PUBLIC.call_webhook_sync ($myid,$notfound_webhook_url,'POST',$payload);
+call call_webhook_sync ($myid,$notfound_webhook_url,'POST',$payload);
 ```
 should give a response like:
 
@@ -150,7 +150,7 @@ should give a response like:
 
 
 ```
-call WEBHOOK_METADATA.PUBLIC.call_webhook_sync ($myid,$bad_webhook_url,'POST',$payload);
+call call_webhook_sync ($myid,$bad_webhook_url,'POST',$payload);
 ``` 
 
 should give a response like:
