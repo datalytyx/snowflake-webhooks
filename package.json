@@ -1,0 +1,18 @@
+{
+  "name": "Webhook",
+  "version": "1.0.0",
+  "description": "",
+  "main": "lambda.js",
+  "directories": {
+    "test": "test"
+  },
+  "author": "Sam Hopper",
+  "license": "UNLICENSED",
+  "private": true,
+  "devDependencies": {
+    "aws-sdk": "^2.509.0"
+  },
+  "dependencies": {
+    "snowflake-sdk": "^1.3.0"
+  }
+}

@@ -1,0 +1,186 @@
+use role SYSADMIN;
+drop database if exists  WEBHOOK_METADATA_DATABASE;
+create database WEBHOOK_METADATA_DATABASE;
+use database WEBHOOK_METADATA_DATABASE;
+use schema WEBHOOK_METADATA_DATABASE.{SNOWFLAKE_METADATA_SCHEMA};
+
+
+-- Create a JSON file format
+create or replace file format json
+  type = json
+  compression = none;
+
+-- Create stage to access the S3 bucket for webhook call notifications
+-- Note: Get the keys from the CloudFormation outputs
+create or replace stage webhook_calls
+  url='s3://{S3_BUCKET}/'
+  credentials=(
+    aws_key_id='{AWS_KEY_ID}'
+    aws_secret_key='{AWS_SECRET_KEY}'
+  )
+  file_format = ( format_name = json );
+
+list @webhook_calls;
+
+CREATE OR REPLACE TRANSIENT TABLE {SNOWFLAKE_METADATA_DATABASE}."{SNOWFLAKE_METADATA_SCHEMA}"."WEBHOOK_LOG" (
+                                                    WEBHOOK_CREATE_TS TIMESTAMP_NTZ,
+                                                    WEBHOOK_COMPLETE_TS TIMESTAMP_NTZ,
+                                                    WEBHOOK_ID varchar(36),
+                                                    WEBHOOK_SYNC_ID varchar(36),
+                                                    WEBHOOK_TYPE VARCHAR(5),
+                                                    WEBHOOK_METHOD VARCHAR(5),
+                                                    WEBHOOK_URL VARCHAR,
+                                                    WEBHOOK_PARAMS VARCHAR,
+                                                    WEBHOOK_STATUS VARCHAR,
+                                                    WEBHOOK_RESPONSE VARCHAR,
+                                                    WEBHOOK_HTTP_RESPONSE VARCHAR,
+                                                    WEBHOOK_RUNTIME FLOAT
+                                                  );
+
+
+use role ACCOUNTADMIN;
+create or replace role WEBHOOK_METADATA_UPDATE_ROLE;
+grant UPDATE on table {SNOWFLAKE_METADATA_DATABASE}."{SNOWFLAKE_METADATA_SCHEMA}"."WEBHOOK_LOG" to role WEBHOOK_METADATA_UPDATE_ROLE;
+create or replace user WEBHOOK_METADATA_UPDATE_user password='evwevkjwbvkjwegvwej' default_role = WEBHOOK_METADATA_UPDATE_ROLE;
+use role SYSADMIN;
+
+
+
+
+create or replace procedure call_webhook_async("id" varchar, "url" varchar, "method" varchar, "params" varchar)
+  returns string not null
+  language javascript
+  as
+  $$
+    // Generate a UUID
+    var sqlText = `SELECT UUID_STRING()`
+    var rs = snowflake.createStatement({ sqlText }).execute()
+    rs.next()
+    var uuid = rs.getColumnValueAsString(1)
+
+
+    var return_var = ""
+
+    var my_sql_command =`INSERT INTO {SNOWFLAKE_METADATA_DATABASE}."{SNOWFLAKE_METADATA_SCHEMA}"."WEBHOOK_LOG" 
+            (WEBHOOK_CREATE_TS,WEBHOOK_ID,WEBHOOK_URL,WEBHOOK_METHOD,WEBHOOK_PARAMS,WEBHOOK_STATUS,WEBHOOK_TYPE,WEBHOOK_SYNC_ID) 
+            VALUES (current_timestamp()::timestamp_ntz,'${id}','${url}','${method}','${params}','async - no feedback available','async','${uuid}')`;
+
+    var statement1 = snowflake.createStatement( {sqlText: my_sql_command} );
+    var result_set1 = statement1.execute();
+    return_var=return_var.concat(my_sql_command)
+
+                                                    
+                                                    
+    // Dump the table out to S3 (using a stage, obvs)
+    sqlText = `copy into @webhook_calls/request/${uuid} from (select 
+        object_construct('id', WEBHOOK_SYNC_ID, 'url', WEBHOOK_URL, 'method', WEBHOOK_METHOD, 'payload', WEBHOOK_PARAMS) 
+        from {SNOWFLAKE_METADATA_DATABASE}."{SNOWFLAKE_METADATA_SCHEMA}"."WEBHOOK_LOG" where WEBHOOK_SYNC_ID='${uuid}')`
+    snowflake.createStatement({ sqlText }).execute()
+    return_var=return_var.concat(sqlText)
+    //return return_var; // Statement returned for info/debug purposes
+    return 'Webhook sucessfully registered for execution'
+  $$;
+
+
+
+create or replace procedure call_webhook_sync("id" varchar, "url" varchar, "method" varchar, "params" varchar)
+  returns string not null
+  language javascript
+  as
+  $$
+    // Generate a UUID
+    var sqlText = `SELECT UUID_STRING()`
+    var rs = snowflake.createStatement({ sqlText }).execute()
+    rs.next()
+    var uuid = rs.getColumnValueAsString(1)
+
+
+    var return_var = ""
+
+    var my_sql_command =`INSERT INTO {SNOWFLAKE_METADATA_DATABASE}."{SNOWFLAKE_METADATA_SCHEMA}"."WEBHOOK_LOG" 
+            (WEBHOOK_CREATE_TS,WEBHOOK_ID,WEBHOOK_URL,WEBHOOK_METHOD,WEBHOOK_PARAMS,WEBHOOK_STATUS,WEBHOOK_TYPE,WEBHOOK_SYNC_ID) 
+            VALUES (current_timestamp()::timestamp_ntz,'${id}','${url}','${method}','${params}','unprocessed','sync','${uuid}')`;
+
+    var statement1 = snowflake.createStatement( {sqlText: my_sql_command} );
+    var result_set1 = statement1.execute();
+    return_var=return_var.concat(my_sql_command)
+
+                                                    
+                                                    
+    // Dump the table out to S3 (using a stage, obvs)
+    sqlText = `copy into @webhook_calls/request/${uuid} from (select 
+        object_construct('id', WEBHOOK_SYNC_ID, 'url', WEBHOOK_URL, 'method', WEBHOOK_METHOD, 'payload', WEBHOOK_PARAMS) 
+        from {SNOWFLAKE_METADATA_DATABASE}."{SNOWFLAKE_METADATA_SCHEMA}"."WEBHOOK_LOG" where WEBHOOK_SYNC_ID='${uuid}')`
+    snowflake.createStatement({ sqlText }).execute()
+    return_var=return_var.concat(sqlText)
+
+    
+    
+  // Poll for the response JSON file to appear in S3
+  const sleepMS = 1000
+  const timeoutMS = 30000
+  let found = false
+  let start = new Date().getTime()
+  let response = null
+  do {
+
+    // Wait
+    sqlText = `call system$wait(${sleepMS}, 'MILLISECONDS')`
+    
+    snowflake.createStatement({ sqlText }).execute()
+
+    // Check for the response in the stage
+    sqlText = `select $1 from @webhook_calls/response/${uuid}`
+    return_var=return_var.concat(sqlText)
+    let rs = snowflake.createStatement({ sqlText }).execute()
+    found = rs.next()
+    if(found) response = rs.getColumnValueAsString(1)
+    return_var=return_var.concat(response)
+
+  } while(!found && new Date().getTime() < start + timeoutMS)
+  
+  
+  // TO DO - Add better handling and reporting to a user when a) a timeout hits in the Lambda function and b) when a timeout hits in the above loop
+  
+
+    // Now result file is in the stage, merge the results back into the main webhook table
+    sqlText = `merge into {SNOWFLAKE_METADATA_DATABASE}."{SNOWFLAKE_METADATA_SCHEMA}"."WEBHOOK_LOG" m
+  using (
+  select  parse_json($1):statusCode as status,parse_json($1):body as body from @webhook_calls/response/${uuid}.json) s 
+  on m.WEBHOOK_SYNC_ID = '${uuid}'
+  when matched then update set m.WEBHOOK_STATUS = 'processed', m.WEBHOOK_RESPONSE = s.body, m.WEBHOOK_HTTP_RESPONSE = s.status, m.WEBHOOK_COMPLETE_TS=current_timestamp()::timestamp_ntz;`
+    return_var=return_var.concat(sqlText)
+    
+
+    rs = snowflake.createStatement({ sqlText }).execute()
+    found = rs.next()
+    
+    if(found) response = rs.getColumnValueAsString(1)
+    return_var=return_var.concat(response)
+    
+
+    // Pull the body response to return with the function return
+    var responsebody='Error, response body cannot be found'
+    sqlText = `select WEBHOOK_RESPONSE, WEBHOOK_HTTP_RESPONSE from {SNOWFLAKE_METADATA_DATABASE}."{SNOWFLAKE_METADATA_SCHEMA}"."WEBHOOK_LOG" where WEBHOOK_SYNC_ID = '${uuid}';`
+    return_var=return_var.concat(sqlText)
+
+    rs = snowflake.createStatement({ sqlText }).execute()
+    found = rs.next()
+    
+ 
+    if(found) responsebody = rs.getColumnValueAsString(1)
+    if(found) responsestatus = rs.getColumnValueAsString(2)
+    let finalresponse='{"httpStatusCode":"520","body":"An unknown error has occured"}'
+    if(responsebody != 'null') finalresponse=`{"httpStatusCode":"${responsestatus}","body":"${responsebody}"}`
+    return_var=return_var.concat(finalresponse)
+
+  //return "DONE"
+  //return return_var; // Statement returned for info/debug purposes
+  return finalresponse;
+    
+  $$;
+
+
+
+
+show procedures;

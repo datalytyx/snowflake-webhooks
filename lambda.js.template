@@ -1,0 +1,122 @@
+const util = require('util')
+const https = require('https')
+
+//var snowflake = require('snowflake-sdk');
+
+const AWS = require('aws-sdk')
+const s3 = new AWS.S3({ region: '{AWS_S3_REGION}' })
+
+// Promisification!
+s3.getObject = util.promisify(s3.getObject)
+s3.putObject = util.promisify(s3.putObject)
+s3.deleteObject = util.promisify(s3.deleteObject)
+
+// Main Lambda function
+exports.callWebhook = async (event, context) => {
+  console.log('event:', JSON.stringify(event))
+  console.log('context:', JSON.stringify(context))
+
+  // Unpack the S3 event
+  if(  !event.Records
+    || !event.Records[0]
+    || !event.Records[0].s3
+    || !event.Records[0].s3.bucket
+    || !event.Records[0].s3.bucket.name
+    || !event.Records[0].s3.object
+    || !event.Records[0].s3.object.key) throw new Error("Malformed event")
+  const bucket = event.Records[0].s3.bucket.name
+  const key = event.Records[0].s3.object.key
+  console.log('Validated S3 event')
+  console.log('bucket:', bucket)
+  console.log('key:', key)
+
+  // Grab the S3 object (webhook call definition) and extract the embedded request
+  const s3GetObjectResponse = await s3.getObject({ Bucket: bucket, Key: key })
+  console.log('Pulled file from S3')
+  console.log('s3GetObjectResponse:', s3GetObjectResponse)
+  const msg = JSON.parse(s3GetObjectResponse.Body.toString())
+  console.log('Extracted msg from S3 file')
+  console.log('msg:', JSON.stringify(msg))
+
+  // Validate the webhook call request
+  if(!msg || !msg.id || !msg.url) throw new Error("Malformed webhook request")
+  if(!msg.method) msg.method = 'POST'
+  console.log('Validated/enriched msg')
+  console.log('msg:', msg)
+
+  // Make the HTTP request
+  const options = {
+    method: msg.method,
+    headers: {
+      'Content-Type': 'text/plain',
+      'x-webhook-call-id': msg.id
+    }
+  }
+  console.log(`Now Sending HTTP request - ${msg.method} ${msg.url} ${options}`)
+  var httpsRequestResponse
+  try {
+    httpsRequestResponse = await httpsRequestHelper(msg.url, options, msg.payload)
+  }
+  catch(err) {
+    console.log('ERROR: ',err)
+    httpsRequestResponse=err   // Since we set the return values 
+  }
+  //var httpsRequestResponse
+
+  //let promise = httpsRequestHelper(msg.url, options, msg.payload)
+		
+  //promise.then(
+//	    function(result) { console.log('GOOD'); /* handle a successful result */ },
+//	    function(error) { console.log('ERROR');/* handle an error */}
+ // );
+//	  httpsRequestResponse => {
+    // user was successfully created
+//    console.log('Received response from webhook:', httpsRequestResponse)
+//    console.log(httpsRequestResponse)
+    // business logic goes here
+//  }, error => {
+  //  console.error(error) 
+  //});
+
+    //httpsRequestResponse = {statusCode: '520', body: err.message};  // 520 is an unknown error  - all actual HTTP STATSU codes from a server are already handled
+
+  // Push the response payload back to S3
+  const s3PutObjectResponse = await s3.putObject({
+    Bucket: bucket,
+    Key: `response/${msg.id}.json`,
+    Body: JSON.stringify(httpsRequestResponse)
+  })
+  console.log('s3PutObjectResponse:', s3PutObjectResponse)
+
+  // Delete the request file from S3
+  // NOTE: This has been removed at match the Snowflake SP's behaviour
+  //let res = await s3.deleteObject({ Bucket: bucket, Key: key })
+  //console.log('res:', res)
+  //console.log('Deleted file from S3')
+
+  return 'SUCCESS'
+}
+
+// Wrapper around https.request to allow sending a request body
+function httpsRequestHelper(url, options, body) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, options, res => {
+      console.log('res:', res)
+      let receivedBody = ''
+      res.on('data', chunk => {
+        console.log('chunk:', chunk)
+        receivedBody += chunk.toString()
+      })
+      res.on('end', () => {
+        console.log('No more data')
+        resolve({ statusCode: res.statusCode, body: receivedBody })
+      })
+    })
+    req.on('error', err => {
+      console.log('Caught https error')
+      reject({ statusCode: '520', body: err })
+    })
+    req.write(body)
+    req.end()
+  })
+}

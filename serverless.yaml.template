@@ -1,0 +1,71 @@
+---
+service: snowflake-webhooks
+
+provider:
+  name: aws
+  runtime: nodejs10.x
+  memorySize: 128 # optional, in MB, default is 1024
+  timeout: 30 # optional, in seconds, default is 6
+  region: eu-west-1
+  iamRoleStatements:
+  - Effect: 'Allow'
+    Action:
+    - 's3:GetObject'
+    - 's3:PutObject'
+    - 's3:DeleteObject'
+    Resource:
+    - 'arn:aws:s3:::{S3_BUCKET}/*'
+
+functions:
+  callWebhook:
+    handler: lambda.callWebhook
+    events:
+    - s3:
+        bucket: {S3_BUCKET}
+        event: s3:ObjectCreated:*
+        rules:
+        - prefix: request/
+
+resources:
+
+  Resources:
+
+    IamUserUser:
+      Type: AWS::IAM::User
+      Properties:
+        UserName: snowflake-webhook
+        Policies:
+        - PolicyName: s3-bucket-{S3_BUCKET}
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - s3:PutAccountPublicAccessBlock
+              - s3:GetAccountPublicAccessBlock
+              - s3:ListAllMyBuckets
+              - s3:HeadBucket
+              Resource: "*"
+            - Effect: Allow
+              Action:
+              - s3:ListBucket
+              - s3:GetBucketLocation
+              Resource: arn:aws:s3:::{S3_BUCKET}
+            - Effect: Allow
+              Action: s3:*
+              Resource: arn:aws:s3:::{S3_BUCKET}/*
+
+    IamAccessKeyKey:
+        Type: AWS::IAM::AccessKey
+        Properties:
+          UserName:
+            !Ref IamUserUser
+
+  Outputs:
+
+    AccessKey:
+      Value:
+        !Ref IamAccessKeyKey
+
+    SecretKey:
+      Value: !GetAtt IamAccessKeyKey.SecretAccessKey
