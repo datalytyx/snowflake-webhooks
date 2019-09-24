@@ -85,7 +85,7 @@ To test that everything is working run the following in Snowflake
 ```
 set myid='anything I want, this is just for me'; 
 set payload='THIS IS A TEST';
-set good_webhook_url='https://webhook.site/8654a519-3e3c-4f52-ac5f-f3623e9f88d8';
+set good_webhook_url='https://webhook.site/<yoururl>';
 set notfound_webhook_url='https://google.com/iamnotavalidpath';
 set bad_webhook_url='https://iamnotavalidurl.com';
 ```
@@ -96,7 +96,7 @@ You can then run the following test cases:
 
 ```
 call call_webhook_async ($myid,$good_webhook_url,'POST',$payload);
-callcall_webhook_async ($myid,$notfound_webhook_url,'POST',$payload);
+call call_webhook_async ($myid,$notfound_webhook_url,'POST',$payload);
 call call_webhook_async ($myid,$bad_webhook_url,'POST',$payload);
 ```
 
@@ -189,16 +189,3 @@ Which will delete the S3 bucket, the lamba functions and the triggers, IAM roles
 
 Then you should drop the database you created in Snowflake and everything will be removed.
 
-
-
-
-
-
-
-
-# OLD
-1. Run sls deploy to build the AWS resources on eu-west-1 using admin credentials.
-2. Copy setup.sql into a Snowflake worksheet and overwrite the stage access keys with the values from the CloudFormation outputs in AWS.
-3. Run the setup SQL in a suitable database with a role that can create the elevant objects (SYSADMIN is easiest).
-4. Set up a webhook test site (e.g. https://webhook.site) and drop the URL into the demo call in the Snowflake worksheet. Configure a response body.
-5. Run the demo call and watch the webhook call come in, with the response arriving back in Snowflake.                                 
