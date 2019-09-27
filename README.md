@@ -4,6 +4,16 @@ A work around implementation to allow webhooks to be called from inside Snowflak
 # Why
 [TO DO]
 
+Numerous!!
+Data Services (next section)
+Alerting (as demonstrated)
+External enrichment (e.g. geo-hashing)
+Orchestration with external systems e.g. calling Talend etc for Calculation/Curation updates
+Triggering external systems to continue with work once long running job has finished
+Almost anything being done with polling today
+…….
+
+
 # Limitations
 This only works using AWS S3 and Lambda. Everything being used has equivalents in Azure and other Cloud Providers. Since the provision of this is done via using the serverless Application Framework, porting to other Cloud Providers should be straightforwards. Pull requests welcome!
 
