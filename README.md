@@ -1,10 +1,18 @@
-# snowflake-webhooks
+# What is it?
 A work around implementation to allow webhooks to be called from inside Snowflake. This allows powerful bidirectional integration between Snowflake and other external systems.
 
 # Why
-[TO DO]
+It is straightforward to make calls/trigger actions with Snowflake from any other systems and many processes/workflows make use of this. However it is current challenging to do the opposite - trigger actions/processes in other systems from within Snowflake. 
 
-Numerous!!
+How could these me used? 
+
+The use cases are wide and varied, anything from simple Email or SMS alerting from inside Snowflake (there are many services that will map an HTTP POST into an onward email or SMS message).
+
+These could be used 
+
+If the information to be sent to the external system is small (e.g. an SMS message, an email message, a request for an orchestration job to run etc), then this can be sent in the payload of the HTTP message. However if the amount of data to be processed is very large, then HTTP is not a good transport for this. 
+
+This is exactly the use case we had when using the Gallium classifier on data inside Snowflake. In some cases organisations had Terabytes or even Petabytes of data they they wanted to process. This is a good example of a Data Service - one organisation has some Data they want 
 Data Services (next section)
 Alerting (as demonstrated)
 External enrichment (e.g. geo-hashing)
@@ -13,6 +21,8 @@ Triggering external systems to continue with work once long running job has fini
 Almost anything being done with polling today
 …….
 
+# Why Webhooks?
+Webhooks are a very standard and well accepted way for web based or systems on the public internet to trigger each other when something happens. A webhook call is really just an HTTP call (usually a POST), so the target system doesn't have to support anything special - if they can be triggered with an HTTP GET or POST then it should work fine and this is almost universally supported by modern systems.
 
 # Limitations
 This only works using AWS S3 and Lambda. Everything being used has equivalents in Azure and other Cloud Providers. Since the provision of this is done via using the serverless Application Framework, porting to other Cloud Providers should be straightforwards. Pull requests welcome!
