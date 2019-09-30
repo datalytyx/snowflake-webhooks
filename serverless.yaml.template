@@ -33,7 +33,7 @@ resources:
     IamUserUser:
       Type: AWS::IAM::User
       Properties:
-        UserName: snowflake-webhook
+        UserName: ${opt:stage}-snowflake-webhook
         Policies:
         - PolicyName: s3-bucket-{S3_BUCKET}
           PolicyDocument:
