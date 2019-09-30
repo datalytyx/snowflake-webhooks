@@ -1,48 +1,40 @@
 # What is it?
-A work around implementation to allow webhooks to be called from inside Snowflake. This allows powerful bidirectional integration between Snowflake and other external systems.
+An implementation to allow webhooks to be called from inside Snowflake. This allows powerful bidirectional integration between Snowflake and other external systems.
 
-# Why
+# Why?
 It is straightforward to make calls/trigger actions with Snowflake from any other systems and many processes/workflows make use of this. However it is current challenging to do the opposite - trigger actions/processes in other systems from within Snowflake. 
 
-How could these me used? 
-
-The use cases are wide and varied, anything from simple Email or SMS alerting from inside Snowflake (there are many services that will map an HTTP POST into an onward email or SMS message).
-
-These could be used 
+## How could Webhooks be used? 
+The use cases are wide and varied, anything from simple Email or SMS alerting from inside Snowflake (there are many services that will map an HTTP POST into an onward email or SMS message) to complex integration and orchestration with external systems.
 
 If the information to be sent to the external system is small (e.g. an SMS message, an email message, a request for an orchestration job to run etc), then this can be sent in the payload of the HTTP message. However if the amount of data to be processed is very large, then HTTP is not a good transport for this. 
 
-This is exactly the use case we had when using the Gallium classifier on data inside Snowflake. In some cases organisations had Terabytes or even Petabytes of data they they wanted to process. This is a good example of a Data Service - one organisation has some Data they want 
-Data Services (next section)
-Alerting (as demonstrated)
-External enrichment (e.g. geo-hashing)
+This is exactly the use case we had when using the Gallium classifier on data inside Snowflake. In some cases organisations had Terabytes or even Petabytes of data they they wanted to process. This is a good example of a Data Service -  organisation has some Data they want processing in some way, another organisation has a processing capability and Data Services is a great way to achieve this with Snowflake. One approach for this is Data Services using Data Sharing (see XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX for a how this can work). Another approach is a more Direct Data Service where the Data Processing is done more directly on the customers data. Datalytyx built a working model of this using 
+
+External enrichment - for example sending data out for enrichment.
 Orchestration with external systems e.g. calling Talend etc for Calculation/Curation updates
 Triggering external systems to continue with work once long running job has finished
-Almost anything being done with polling today
-…….
+
+In general, almost anything that is achieved today with a system that does "poll Snowflake waiting for something to arrive or something to happen" can be replaced with Webhooks.
 
 # Why Webhooks?
 Webhooks are a very standard and well accepted way for web based or systems on the public internet to trigger each other when something happens. A webhook call is really just an HTTP call (usually a POST), so the target system doesn't have to support anything special - if they can be triggered with an HTTP GET or POST then it should work fine and this is almost universally supported by modern systems.
 
 # Limitations
-This only works using AWS S3 and Lambda. Everything being used has equivalents in Azure and other Cloud Providers. Since the provision of this is done via using the serverless Application Framework, porting to other Cloud Providers should be straightforwards. Pull requests welcome!
-
-This code doesn't remove the temporary request and response files from the S3 bucket. If you want to clean these up this is left as a homework exercise.
-
-The reliability of the delivery from Snowflake to S3 to trigger the Lamda function is based on the reliability of S3 events. Nothing is provided beyond this at the application level.
-
-HTTP Verbs other than POST are technically supported but have not been extensively tested.
-
-WEBHOOK_RUNTIME is not currently populated but since the START and COMPLETE times are populated, this is trival to derive.
+* This only works using AWS S3 and Lambda. All components (e.g. S3, Lamdba being used has equivalents in Azure and other Cloud Providers. Since the provision of this is done via using the serverless Application Framework, porting to other Cloud Providers should be straightforwards. Pull requests welcome!
+* This code doesn't remove the temporary request and response files from the S3 bucket. If you want to clean these up this is left as a homework exercise.
+* The reliability of the delivery from Snowflake to S3 to trigger the Lamda function is based on the reliability of S3 events. Nothing is provided beyond this at the application level.
+* HTTP Verbs other than POST are technically supported but have not been extensively tested.
+* WEBHOOK_RUNTIME is not currently populated but since the START and COMPLETE times are populated, this is trival to derive.
 
 # Architecture
-Since there is no ability to execute arbitrary code (or at least code that can talk out on a network) from within Snowflake, we need to take a slightly different approach. Instead the approach we take is to create 'markers' from within Snowflake that an external system can pickup on and then action.
+Since there is no ability to execute arbitrary code (or at least code that can talk out on a network) from within Snowflake, an alternative approach is required. Instead the approach we took in for this work is to create 'markers' from within Snowflake that an external system can pickup on and then action.
 
 ![ScreenShot](snowflake-webhooks-architecture-image.png)
 
 The logical flow is as follows:
-* A call to  the ```webhook_sync``` or ```webhook_async``` procedures are called from anywhere inside Snowflake
-* This creates a row in a metadata table in the ```WEBHOOK_METADATA``` database
+* A call to  the ```call_webhook_sync``` or ```call_webhook_async``` procedures are called from anywhere inside Snowflake
+* This creates a row in a metadata table in the ```WEBHOOK_METADATA``` (or whatever you define) database
 * If the async method is being used, the function now returns with a unique webhook id and execution of your code continues
 * This also creates a file in the ```WEBHOOK_METADATA_OUT``` stage on S3
 * The creation of this file triggers a Lambda function to execute
@@ -71,7 +63,8 @@ export AWS_SECRET_KEY="<your aws secret>"
 export AWS_S3_REGION="eu-west-1"
 export S3_BUCKET="your_desired_s3_bucket_location"   # note this will be created for you and cannot already exist
 ```
-The use the following commands to convert the template files into ones personalised for you:
+
+Then use the following commands to convert the template files into ones personalised for you:
 ```
 cat setup.sql.template | sed -e "s~{SNOWFLAKE_METADATA_DATABASE}~$SNOWFLAKE_METADATA_DATABASE~g" | sed -e "s~{SNOWFLAKE_METADATA_SCHEMA}~$SNOWFLAKE_METADATA_SCHEMA~g" | sed -e "s~{S3_BUCKET}~$S3_BUCKET~g" | sed -e "s~{AWS_KEY_ID}~$AWS_KEY_ID~g" | sed -e "s~{AWS_SECRET_KEY}~$AWS_SECRET_KEY~g" > setup.sql
 
@@ -80,13 +73,14 @@ cat serverless.yaml.template | sed -e "s~{S3_BUCKET}~$S3_BUCKET~g" > serverless.
 cat lambda.js.template  | sed -e "s~{AWS_S3_REGION}~$AWS_S3_REGION~g" > lambda.js
 ```
 
-
 ## Setup lambda functions and triggers from S3 bucket
 Assuming you already have your AWS credentials setup using ```aws configure```, all you need to do is run:
 
 ```
 serverless deploy
 ```
+
+Alternatively - you can namespace this by using the ```--stage <stagename>``` flag
 
 ## Setting up Snowflake
 While you can execute the contents of ```setup.sql``` from the CLI (e.g. using snowsql), since this is only a one time setup script the easiest thing to do is to simply open up a Snowflake workbook in your browser, paste the contents of setup.sql in and execute. 
@@ -198,8 +192,7 @@ If you run a sync call and see a response
 The most likely cause is the Lambda function is not deployed correctly.
 
 # Uninstall
-Delete all the files in your S3 bucket (if not, the serverless remove will fail and could leave your system in partially deleted state)
-Run
+Delete all the files in your S3 bucket (if not, the serverless remove will fail and could leave your system in partially deleted state) then run
 
 ```
 serverless remove
@@ -207,5 +200,5 @@ serverless remove
 
 Which will delete the S3 bucket, the lamba functions and the triggers, IAM roles etc.
 
-Then you should drop the database you created in Snowflake and everything will be removed.
+Then you should drop the schema and database you created in Snowflake and everything will be removed.
 
