@@ -4,6 +4,16 @@ A work around implementation to allow webhooks to be called from inside Snowflak
 # Why
 [TO DO]
 
+Numerous!!
+Data Services (next section)
+Alerting (as demonstrated)
+External enrichment (e.g. geo-hashing)
+Orchestration with external systems e.g. calling Talend etc for Calculation/Curation updates
+Triggering external systems to continue with work once long running job has finished
+Almost anything being done with polling today
+…….
+
+
 # Limitations
 This only works using AWS S3 and Lambda. Everything being used has equivalents in Azure and other Cloud Providers. Since the provision of this is done via using the serverless Application Framework, porting to other Cloud Providers should be straightforwards. Pull requests welcome!
 
@@ -13,7 +23,7 @@ The reliability of the delivery from Snowflake to S3 to trigger the Lamda functi
 
 HTTP Verbs other than POST are technically supported but have not been extensively tested.
 
-WEBHOOK_RUNTIME is not currently populated but since the STARt and COMPLETE times are populated, this is trival to derive.
+WEBHOOK_RUNTIME is not currently populated but since the START and COMPLETE times are populated, this is trival to derive.
 
 # Architecture
 Since there is no ability to execute arbitrary code (or at least code that can talk out on a network) from within Snowflake, we need to take a slightly different approach. Instead the approach we take is to create 'markers' from within Snowflake that an external system can pickup on and then action.
@@ -85,7 +95,7 @@ To test that everything is working run the following in Snowflake
 ```
 set myid='anything I want, this is just for me'; 
 set payload='THIS IS A TEST';
-set good_webhook_url='https://webhook.site/8654a519-3e3c-4f52-ac5f-f3623e9f88d8';
+set good_webhook_url='https://webhook.site/<yoururl>';
 set notfound_webhook_url='https://google.com/iamnotavalidpath';
 set bad_webhook_url='https://iamnotavalidurl.com';
 ```
@@ -95,9 +105,9 @@ Be sure to set your good_webhook_url to the one you created yourself at webhook.
 You can then run the following test cases:
 
 ```
-call WEBHOOK_METADATA.PUBLIC.call_webhook_async ($myid,$good_webhook_url,'POST',$payload);
-call WEBHOOK_METADATA.PUBLIC.call_webhook_async ($myid,$notfound_webhook_url,'POST',$payload);
-call WEBHOOK_METADATA.PUBLIC.call_webhook_async ($myid,$bad_webhook_url,'POST',$payload);
+call call_webhook_async ($myid,$good_webhook_url,'POST',$payload);
+call call_webhook_async ($myid,$notfound_webhook_url,'POST',$payload);
+call call_webhook_async ($myid,$bad_webhook_url,'POST',$payload);
 ```
 
 You should see a response pretty quickly that says:
@@ -117,7 +127,7 @@ Which is very useful for debugging.
 The following sync calls DO return different results:
 
 ```
-call WEBHOOK_METADATA.PUBLIC.call_webhook_sync ($myid,$good_webhook_url,'POST',$payload);
+call call_webhook_sync ($myid,$good_webhook_url,'POST',$payload);
 ```
 
 should give a response like:
@@ -129,7 +139,7 @@ should give a response like:
 Where ```HELLO``` was the HTTP Response I setup when I created my URL at webhook.site
 
 ```
-call WEBHOOK_METADATA.PUBLIC.call_webhook_sync ($myid,$notfound_webhook_url,'POST',$payload);
+call call_webhook_sync ($myid,$notfound_webhook_url,'POST',$payload);
 ```
 should give a response like:
 
@@ -150,7 +160,7 @@ should give a response like:
 
 
 ```
-call WEBHOOK_METADATA.PUBLIC.call_webhook_sync ($myid,$bad_webhook_url,'POST',$payload);
+call call_webhook_sync ($myid,$bad_webhook_url,'POST',$payload);
 ``` 
 
 should give a response like:
@@ -189,16 +199,3 @@ Which will delete the S3 bucket, the lamba functions and the triggers, IAM roles
 
 Then you should drop the database you created in Snowflake and everything will be removed.
 
-
-
-
-
-
-
-
-# OLD
-1. Run sls deploy to build the AWS resources on eu-west-1 using admin credentials.
-2. Copy setup.sql into a Snowflake worksheet and overwrite the stage access keys with the values from the CloudFormation outputs in AWS.
-3. Run the setup SQL in a suitable database with a role that can create the elevant objects (SYSADMIN is easiest).
-4. Set up a webhook test site (e.g. https://webhook.site) and drop the URL into the demo call in the Snowflake worksheet. Configure a response body.
-5. Run the demo call and watch the webhook call come in, with the response arriving back in Snowflake.                                 
