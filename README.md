@@ -2,38 +2,38 @@
 An implementation to allow webhooks to be called from inside Snowflake to connect to external systems. This allows powerful bidirectional integration between Snowflake and other external systems.
 
 # Why?
-It is straightforward to make calls/trigger actions with Snowflake from any other systems and many processes/workflows make use of this. However it is current challenging to do the opposite - trigger actions/processes in other systems from within Snowflake. 
+It is straightforward to make calls/trigger actions with Snowflake from any other systems and many processes/workflows make use of this. HoweverHowever, it is currently challenging to do the opposite - trigger actions/processes in other systems from within Snowflake.
 
 ## How could Webhooks be used? 
 The use cases are wide and varied, anything from simple Email or SMS alerting from inside Snowflake (there are many services that will map an HTTP POST into an onward email or SMS message) to complex integration and orchestration with external systems.
-
-If the information to be sent to the external system is small (e.g. an SMS message, an email message, a request for an orchestration job to run etc), then this can be sent in the payload of the HTTP message. 
-
-A good example of a more sophisticated use is bringing together tools like Talend and Snowflake with bidirectional orchestration. Orchestration from Talend can kick off long running jobs inside Snowflake without having to maintain a session, or having to poll to find out if jobs have completed. When the work inside Snowflake has finished, a webhook call be made back into Talend to start the next step in the process.
+If the information to be sent to the external system is small (e.g.e.g., an SMS message, an email message, a request for an orchestration job to run, etc.), then this can be sent in the payload of the HTTP message.
+A good example of a more sophisticated use is bringing together tools like Talend and Snowflake with bidirectional orchestration. Orchestration from Talend can kick off long running jobs inside Snowflake without having to maintain a session, orsession or having to poll to find out if jobs have completed. When the work inside Snowflake has finished, a webhook call can be made back into Talend to start the next step in the process.
 
 A similar example is with Databricks. Many customers hold data inside Snowflake for training models. When a critical mass of new data has been added, a retraining of a model within Databricks can be triggered.
-
 If the amount of data to be processed is very large, then HTTP is not a good transport - millions of rows in an HTTP POST is not a good model!
 
-This is exactly the use case we had when using the Gallium classifier on data inside Snowflake. In some cases organisations had Terabytes or even Petabytes of data they they wanted to process. This is a good example of a Data Service -  organisation has some Data they want processing in some way, another organisation has a processing capability and Data Services is a great way to achieve this with Snowflake. One approach for this is Data Services using Data Sharing. Another approach is a more Direct Data Service where the Data Processing is done more directly on the customers data. Datalytyx built a working model of this using this web hook implementation and Table Streams (to do CDC). Using a scheduled Task within Snowflake we grab all the recently added data from the Table Stream, drop into files on a stage and then send references to these files using webhooks to Gallium to be classified. Once the results are completed, they are put back into a stage and loaded using SnowPipe.
+This is exactly the use case we had when using the Gallium classifier on data inside Snowflake. In some cases organisations had Terabytes or even Petabytes of data thatey they wanted to process. This is a good example of a Data Service -– an organisation has some Data that they want processeding in some way, another organisation has a processing capability and Data Services is a great way to achieve this with Snowflake. One approach for this is Data Services using Data Sharing. Another approach is a more Direct Data Service where the Data Processing is done more directly on the customer’s data. Datalytyx built a working model of this using this web hook implementation and Table Streams (to do CDC). Using a scheduled Task within Snowflake we grab all the recently added data from the Table Stream, drop it into files on a stage and then send references to these files using webhooks to Gallium to be classified. Once the results are completed, they are put back into a stage and loaded using SnowPipe.
 
 In general, almost anything that is achieved today with a system that does "poll Snowflake waiting for something to arrive or something to happen" can be replaced with Webhooks.
+
 
 # Why Webhooks?
 Webhooks are a very standard and well accepted way for web based or systems on the public internet to trigger each other when something happens. A webhook call is really just an HTTP call (usually a POST), so the target system doesn't have to support anything special - if they can be triggered with an HTTP GET or POST then it should work fine and this is almost universally supported by modern systems.
 
 # Architecture
-Since there is no ability to execute arbitrary code (or at least code that can talk out on a network) from within Snowflake, an alternative approach is required. Instead the approach we took in for this work is to create 'markers' from within Snowflake that an external system can pickup on and then action.
+Since there is no ability to execute arbitrary code (or at least code that can talk out on a network) from within Snowflake, an alternative approach is required. Instead the approach we took in for this work is to create 'markers' from within Snowflake that an external system can pick up on and then action.
+
+The architecture looks like:
 
 ![ScreenShot](snowflake-webhooks-architecture-image.png)
 
 The logical flow is as follows:
 * A call to  the ```call_webhook_sync``` or ```call_webhook_async``` procedures are called from anywhere inside Snowflake
 * This creates a row in a metadata table in the ```WEBHOOK_METADATA``` (or whatever you define) database
-* If the async method is being used, the function now returns with a unique webhook id and execution of your code continues
+* If the async method is being used, the function now returns with a unique webhook ID and execution of your code continues
 * This also creates a file in the ```WEBHOOK_METADATA_OUT``` stage on S3
 * The creation of this file triggers a Lambda function to execute
-* This Lambda function does the actual work of calling the external webhook, passing the data and recieving the response. Note: this means the source address of the webhook call will be from the pool used by AWS Lambda, not Snowflake
+* This Lambda function does the actual work of calling the external webhook, passing the data and receiving the response. Note: this means the source address of the webhook call will be from the pool used by AWS Lambda, not Snowflake
 * The Lambda function writes a file in the ```WEBHOOK_METADATA_IN```  stage and triggers a read from this
 * This updates the row in the metadata table with various parameters e.g. the execution time, the HTTP response code and payload
 * If the sync method is being used then the procedure has been polling the metadata table, waiting for the response information to appear (or a timeout to be hit) and then returns an object with the HTTP response code and payload
@@ -49,14 +49,14 @@ The logical flow is as follows:
 
 # Setup
 In order to setup your system to run webhooks you will need:
-* A Snowflake account including the SYSADMIN ROLE etc
-* An AWS account with the following permissions permissions to create IAM Roles, Lambda Functions, S3 Buckets etc
+* A Snowflake account including the SYSADMIN ROLE, etc.
+* An AWS account with the following permissions to create IAM Roles, Lambda Functions, S3 Buckets, etc
 * A machine to run the creation scripts from. This machine is only needed for setup, not for ongoing operation. This machine needs to have been setup for the AWS CLI including permissions.
-* The Serverless Application Framework (usually ```npm install -g serverless``` if not check Serverless documentation)
-* This repository (usually ```git clone https://github.com/datalytyx/snowflake-webhooks.git```)
+* The Serverless Application Framework (usually ```npm install -g serverless``` if not check Serverless documentation).
+* This repository (usually ```git clone https://github.com/datalytyx/snowflake-webhooks.git```).
 
 # Installation
-The installation uses templates version of a few creation scripts. The information specific to you needs to be added do the scripts are customised to your envrionment. You can do this by hand (not recommended!) or just setup your specific configuration eith environment variables:
+The installation uses templates version of a few creation scripts. The information specific to you needs to be added to the scripts and customised to your envrionment. You can do this by hand (not recommended!) or just setup your specific configuration with environment variables:
 
 ```
 export SNOWFLAKE_METADATA_DATABASE="WEBHOOK_METADATA"
@@ -92,7 +92,7 @@ In the Workbench be sure to use the SYSADMIN role and set a warehouse just to ru
 
 Leave a Snowflake workbook open for testing next. 
 
-After executing this script you will need to grant SELECT and UPDATE priviledges to this database to ROLES you want to be able to call webhooks.
+After executing this script you will need to grant SELECT and UPDATE privileges to this database to ROLES that you want to be able to call webhooks.
 
 ## Testing
 A simple way is to use https://webhook.site/ - it will give you a test URL like ```https://webhook.site/38c60cba-dc45-424e-9f9a-f8e83fa0dc4f``` that you can use to test webhooks, check they are being called correctly and set payload responses for testing.
@@ -123,7 +123,7 @@ You should see a response pretty quickly that says:
 Webhook sucessfully registered for execution
 ```
 
-This means that a row has been written to the SNOWFLAKE_METADATA_DATABASE you defined and a file has been created in the S3 bucket. Assuming the Lambda function has been setup correctly the writing of this file will trigger the Lamba function. The AWS Lambda pages provide excellent functionality to check that jobs have been executed, whether they ran sucessfully or not and see the logs for the function. You can also get these logs streamed to you in real-time (with some delay) by running:
+This means that a row has been written to the SNOWFLAKE_METADATA_DATABASE you defined and a file has been created in the S3 bucket. Assuming the Lambda function has been setup correctly the writing of this file will trigger the Lamba function. The AWS Lambda pages provide excellent functionality to check that jobs have been executed, whether they ran successfully or not and see the logs for the function. You can also get these logs streamed to you in real-time (with some delay) by running:
 
 ```
 serverless logs --function callWebhook --tail
