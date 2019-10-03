@@ -1,8 +1,10 @@
+Note: if you experience any issues installing or using this, please create an issue on github and we'll be happy to help!
+
 # What is it?
 An implementation to allow webhooks to be called from inside Snowflake to connect to external systems. This allows powerful bidirectional integration between Snowflake and other external systems.
 
 # Why?
-It is straightforward to make calls/trigger actions with Snowflake from any other systems and many processes/workflows make use of this. HoweverHowever, it is currently challenging to do the opposite - trigger actions/processes in other systems from within Snowflake.
+It is straightforward to make calls/trigger actions with Snowflake from any other systems and many processes/workflows make use of this. However, it is currently challenging to do the opposite - trigger actions/processes in other systems from within Snowflake.
 
 ## How could Webhooks be used? 
 The use cases are wide and varied, anything from simple Email or SMS alerting from inside Snowflake (there are many services that will map an HTTP POST into an onward email or SMS message) to complex integration and orchestration with external systems.
