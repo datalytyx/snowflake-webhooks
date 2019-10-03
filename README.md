@@ -120,7 +120,7 @@ call call_webhook_async ($myid,$bad_webhook_url,'POST',$payload);
 You should see a response pretty quickly that says:
 
 ```
-Webhook sucessfully registered for execution
+Webhook successfully registered for execution
 ```
 
 This means that a row has been written to the SNOWFLAKE_METADATA_DATABASE you defined and a file has been created in the S3 bucket. Assuming the Lambda function has been setup correctly the writing of this file will trigger the Lamba function. The AWS Lambda pages provide excellent functionality to check that jobs have been executed, whether they ran successfully or not and see the logs for the function. You can also get these logs streamed to you in real-time (with some delay) by running:
@@ -190,7 +190,7 @@ If the valid calls to the good url have worked you should also see them pop up i
 ## Common faults
 If you run a sync call and see a response 
 
-```{"httpStatusCode":"520","body":"An unknown error has occured"}```
+```{"httpStatusCode":"520","body":"An unknown error has occurred"}```
 
 The most likely cause is the Lambda function is not deployed correctly.
 

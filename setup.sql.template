@@ -170,7 +170,7 @@ create or replace procedure call_webhook_sync("id" varchar, "url" varchar, "meth
  
     if(found) responsebody = rs.getColumnValueAsString(1)
     if(found) responsestatus = rs.getColumnValueAsString(2)
-    let finalresponse='{"httpStatusCode":"520","body":"An unknown error has occured"}'
+    let finalresponse='{"httpStatusCode":"520","body":"An unknown error has occurred"}'
     if(responsebody != 'null') finalresponse=`{"httpStatusCode":"${responsestatus}","body":"${responsebody}"}`
     return_var=return_var.concat(finalresponse)
 
