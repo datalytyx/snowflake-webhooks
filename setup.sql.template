@@ -38,7 +38,7 @@ CREATE OR REPLACE TRANSIENT TABLE {SNOWFLAKE_METADATA_DATABASE}."{SNOWFLAKE_META
                                                   );
 
 
-use role ACCOUNTADMIN;
+use role SECURITYADMIN;
 create or replace role WEBHOOK_METADATA_UPDATE_ROLE;
 grant UPDATE on table {SNOWFLAKE_METADATA_DATABASE}."{SNOWFLAKE_METADATA_SCHEMA}"."WEBHOOK_LOG" to role WEBHOOK_METADATA_UPDATE_ROLE;
 create or replace user WEBHOOK_METADATA_UPDATE_user password='evwevkjwbvkjwegvwej' default_role = WEBHOOK_METADATA_UPDATE_ROLE;
